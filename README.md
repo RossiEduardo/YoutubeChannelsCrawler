@@ -14,8 +14,6 @@ This will install Puppeteer and other required packages.
 
 Open the index.js file in a text editor. Make sure to check and configure any variables or parameters inside the script, such as login credentials or file paths.
 
-Important: Translate the 'Ver endereço de e-mail' (View email address) to your language.
-
 ### Step 3: Run the Script
 
 After configuring the script, return to your terminal and run the script using the following command:
