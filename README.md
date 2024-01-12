@@ -1,4 +1,15 @@
-# Running the YouTube Channels Crawler Script
+# YouTube Channels Crawler
+
+This script is designed to scrape information from YouTube channels, including channel name, social media links, and email addresses. It utilizes Puppeteer, a headless browser automation library, to interact with the YouTube website and retrieve the desired information.
+
+### Features
+
+- Channel Data Scraping: Extracts channel name, social media links, and email address.
+- Captcha Handling: Resolves Google reCAPTCHA challenges during the scraping process.
+- CSV Export: Saves the scraped data into a CSV file for easy analysis.
+
+
+## Running the YouTube Channels Crawler Script
 ### Step 1: Install Dependencies
 
 Open a terminal in the directory containing your script (index.js) and run the following command to install the necessary dependencies using npm:
@@ -27,10 +38,10 @@ This will execute the script, and you should see the browser automation process 
 
 ### Step 4: Check the Output
 
-Upon completion, the script will save the YouTube channels data to a CSV file named channels_data.csv in the same directory as your script. You can open this file to view the results.
+Upon completion, the script will save the YouTube channels data to a CSV file named `channels_data.csv` in the same directory as your script. You can open this file to view the results.
 
 Additional Notes:
 
-    Ensure that you have a stable internet connection during script execution.
-    If you want to run the script in a hidden way you need to change `headless: false` at launch on main to `headless: 'new'`.
-    Keep the terminal open until the script completes its execution.
+- Ensure that you have a stable internet connection during script execution.
+- If you want to run the script in a hidden way you need to change `headless: false` at launch on main to `headless: 'new'`.
+- Keep the terminal open until the script completes its execution.
