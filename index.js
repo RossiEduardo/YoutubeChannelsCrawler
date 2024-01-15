@@ -26,6 +26,38 @@ function get_yt_urls(file) {
 	});
 }
 
+function get_google_credentials(file) {
+	return new Promise((resolve, reject) => {
+		const filePath = file;
+
+		// Read the file
+		fs.readFile(filePath, 'utf8', (err, data) => {
+			if (err) {
+				reject('Error reading the file:', err);
+				return;
+			}
+
+			// Split the data by lines
+			const lines = data.split('\n');
+
+			// Create an array to store email credentials
+			const emailCredentials = [];
+
+			// Parse each line and extract login and password
+			lines.forEach(line => {
+				const [login, password] = line.trim().split(',');
+
+				// Check if both login and password are present
+				if (login && password) {
+					emailCredentials.push({ login, password });
+				}
+			});
+
+			resolve(emailCredentials);
+		});
+	});
+}
+
 function create_csv(yt_channels_data) {
 	//convert to csv
 	const json2csvParser = new Parser();
@@ -37,11 +69,14 @@ function create_csv(yt_channels_data) {
 	});
 }
 
-async function login_to_google(page, navigationPromise) {
+async function login_to_google(page, navigationPromise, google_credentials) {
+	const email = google_credentials.login;
+	console.log("login into ", email);
+	const password = google_credentials.password;
 	await page.goto('https://accounts.google.com/');
 	console.log('login to google...');
 	await navigationPromise;
-	await page.waitForTimeout(1000);
+	await page.waitForTimeout(2000);
 
 	await page.waitForSelector('input[type="email"]');
 	await page.click('input[type="email"]');
@@ -49,7 +84,7 @@ async function login_to_google(page, navigationPromise) {
 	await navigationPromise;
 
 	//TODO : change to your email
-	await page.type('input[type="email"]', 'youremail@email.com');
+	await page.type('input[type="email"]', email);
 
 	await page.waitForSelector('#identifierNext');
 	await page.click('#identifierNext');
@@ -58,10 +93,10 @@ async function login_to_google(page, navigationPromise) {
 
 	await page.waitForSelector('input[type="password"]');
 	await page.click('input[type="password"]');
-	await page.waitForTimeout(1500);
+	await page.waitForTimeout(2000);
 
 	//TODO : change to your password
-	await page.type('input[type="password"]', 'YOUR PASSWORD');
+	await page.type('input[type="password"]', password);
 
 	await page.waitForSelector('#passwordNext');
 	await page.click('#passwordNext');
@@ -129,7 +164,7 @@ async function get_channel_email(page) {
 	await checkbox.click();
 	console.log('Resolving captcha...');
 	//wait the captcha be resolved
-	await frameContent.waitForSelector('.recaptcha-checkbox-checked')
+	await frameContent.waitForSelector('.recaptcha-checkbox-checked');
 	//click on the submit button
 	await page.waitForSelector('#submit-btn');
 	await page.click('#submit-btn');
@@ -165,45 +200,88 @@ async function scrap_channel_data(channel_url, page) {
 	return yt_channel;
 }
 
-async function main() {
-	console.log('Connecting to Scraping Browser...');
-	const browser = await puppeteer.launch({
+async function create_connection() {
+	let browser = await puppeteer.launch({
 		headless: false,
 		args: [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`],
 		executablePath: executablePath()
 	});
 	console.log('Connected!');
-	const page = await browser.newPage();
+	let page = await browser.newPage();
 	await page.setUserAgent(
 		'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
 	);
-	const navigationPromise = page.waitForNavigation();
+
+	return {
+		browser: browser,
+		page: page
+	};
+}
+
+async function main() {
+	console.log('Connecting to Scraping Browser...');
+	let browser;
+	let page;
 	try {
+		let connection = await create_connection();
+		browser = connection.browser;
+		page = connection.page;
+		const navigationPromise = page.waitForNavigation();
+
 		let yt_channels_data = [];
-		await login_to_google(page, navigationPromise);
+		const google_accounts = await get_google_credentials('emails.txt');
+		let google_accounts_available = google_accounts.length;
+		
+		await login_to_google(page, navigationPromise, google_accounts[google_accounts_available - 1]);
+		google_accounts_available--;
+
 		await navigationPromise;
 
 		const yt_url_channels = await get_yt_urls('yt_channels.txt');
-
 		await page.waitForTimeout(2000);
 
 		for (let i = 0; i < yt_url_channels.length; i++) {
 			try {
+				//go to youtube channel and get its infos
 				const yt_channel = await scrap_channel_data(yt_url_channels[i], page);
 				yt_channels_data.push(yt_channel);
-				if(yt_channel.email === " "){
-					console.log("Email address hidden. You have reached your access limit for today. Try switching accounts");
-					console.log("Exiting...");
-					break;
+
+				if (yt_channel.email === " ") {
+					console.log('Email address hidden. You have reached your access limit for today. Try switching accounts');
+					console.log('log out...');
+					await page.goto('https://www.youtube.com/logout');
+					await navigationPromise;
+					await page.close();
+					await browser.close();
+
+					// Try to get the email to this channel again, but now with another google account
+					if (google_accounts_available) {
+						// create a new browser
+						connection = await create_connection();
+						browser = connection.browser;
+						page = connection.page;
+						
+						await login_to_google(page, navigationPromise, google_accounts[google_accounts_available - 1]);
+						await navigationPromise;
+						google_accounts_available--;
+						i--; // Going back to the channel we were on
+					} else {
+						console.log('No more google accounts available.\nExiting...');
+						break;
+					}
 				}
 			} catch (error) {
 				console.error(`Error scraping channel ${i + 1}:`, error.message);
 			}
 		}
 		create_csv(yt_channels_data);
-	} finally {
-		await page.close();
-		await browser.close();
+	}finally{
+		if(!page.isClosed()) {
+			page.close();
+		}
+		if(browser.isConnected()) {
+			browser.close();
+		}
 	}
 }
 
