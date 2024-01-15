@@ -2,6 +2,9 @@
 
 This script is designed to scrape information from YouTube channels, including channel name, social media links, and email addresses. It utilizes Puppeteer, a headless browser automation library, to interact with the YouTube website and retrieve the desired information.
 
+#### Important
+It's recommended to provide multiple Google accounts in the 'email.txt' file, especially if you plan to scrape many channels. This is because YouTube may impose restrictions on accessing email addresses, and having multiple accounts helps circumvent these limitations.
+
 ### Features
 
 - Channel Data Scraping: Extracts channel name, social media links, and email address.
@@ -24,9 +27,9 @@ This will install Puppeteer and other required packages.
 ### Step 2: Configure Your Script
 
 Open the index.js file in a text editor. Make sure to check and configure any variables or parameters inside the script, such as login credentials or file paths.
-#### Important:
-    - You need to put your google account credentials at in function `login_to_google( )` at `index.js`;
-    - This script use CapSolver to solver the reCaptcha. You need to have a API KEY of CapSolver and input it at `CapSolver.Browser.Extension/assets/config.js`
+
+- You need to put your google account credentials in the format `email,password` at `emails.txt`;
+- This script use CapSolver to solver the reCaptcha. You need to have a API KEY of CapSolver and input it at `CapSolver.Browser.Extension/assets/config.js`
 
 ### Step 3: Run the Script
 
