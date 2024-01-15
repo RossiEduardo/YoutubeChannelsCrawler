@@ -71,7 +71,7 @@ function create_csv(yt_channels_data) {
 
 async function login_to_google(page, navigationPromise, google_credentials) {
 	const email = google_credentials.login;
-	console.log("login into ", email);
+	console.log('login into ', email);
 	const password = google_credentials.password;
 	await page.goto('https://accounts.google.com/');
 	console.log('login to google...');
@@ -100,7 +100,20 @@ async function login_to_google(page, navigationPromise, google_credentials) {
 
 	await page.waitForSelector('#passwordNext');
 	await page.click('#passwordNext');
-	console.log('logged in to google account');
+
+	// Wait the login
+	await navigationPromise;
+	await page.waitForTimeout(4000);
+
+	// verify login
+	const current_url = await page.url();
+	if (current_url.includes('myaccount.google.com')) {
+		console.log('logged in successfully');
+		return "success";
+	} else {
+		console.log('Login failed');
+		return "failed";
+	}
 }
 
 async function get_channel_name(page) {
@@ -109,6 +122,7 @@ async function get_channel_name(page) {
 		const element = document.querySelector('.ytd-channel-name yt-formatted-string');
 		return element ? element.textContent.trim() : null;
 	});
+	console.log('\n========================\n');
 	console.log('Channel Name:', channel_name);
 	return channel_name;
 }
@@ -148,33 +162,42 @@ async function get_channel_social_medias(page) {
 
 async function get_channel_email(page) {
 	// Click on the button to see the users email
-	await page.waitForSelector('#view-email-button-container');
-	await page.click('#view-email-button-container');
-	// Wait for the reCAPTCHA iframe to appear
-	const iframeSelector = 'iframe[src^="https://www.google.com/recaptcha/"]';
-	await page.waitForSelector(iframeSelector);
-	const frame = await page.$(iframeSelector);
-	const frameContent = await frame.contentFrame();
+	try {
+		await page.waitForSelector('#view-email-button-container');
+		await page.click('#view-email-button-container');
+		// Wait for the reCAPTCHA iframe to appear
+		const iframeSelector = 'iframe[src^="https://www.google.com/recaptcha/"]';
+		await page.waitForSelector(iframeSelector);
+		const frame = await page.$(iframeSelector);
+		const frameContent = await frame.contentFrame();
 
-	// Switch to the reCAPTCHA iframe
-	await page.waitForTimeout(1000); // Adding a short delay for stability
-	const checkboxSelector = '.recaptcha-checkbox-checkmark';
-	await frameContent.waitForSelector(checkboxSelector, { visible: true });
-	const checkbox = await frameContent.$(checkboxSelector);
-	await checkbox.click();
-	console.log('Resolving captcha...');
-	//wait the captcha be resolved
-	await frameContent.waitForSelector('.recaptcha-checkbox-checked');
-	//click on the submit button
-	await page.waitForSelector('#submit-btn');
-	await page.click('#submit-btn');
-	//wait the email loads
-	await page.waitForTimeout(2000);
-	//get the email
-	await page.waitForSelector('#email');
-	const email = await page.$eval('#email', element => element.textContent);
-	console.log('e-mail:', email);
-	return email;
+		// Switch to the reCAPTCHA iframe
+		await page.waitForTimeout(1000); // Adding a short delay for stability
+		const checkboxSelector = '.recaptcha-checkbox-checkmark';
+		await frameContent.waitForSelector(checkboxSelector, { visible: true });
+		const checkbox = await frameContent.$(checkboxSelector);
+		await checkbox.click();
+		console.log('Resolving captcha...');
+		//wait the captcha be resolved
+		await frameContent.waitForSelector('.recaptcha-checkbox-checked');
+		//click on the submit button
+		await page.waitForSelector('#submit-btn');
+		await page.click('#submit-btn');
+		//wait the email loads
+		await page.waitForTimeout(2000);
+		//get the email
+		await page.waitForSelector('#email');
+		const email = await page.$eval('#email', element => element.textContent);
+		if (email === ' ') {
+			console.log('Email address hidden. You have reached your access limit for today. Try switching accounts');
+			return 'error';
+		}
+		console.log('e-mail:', email);
+		return email;
+	} catch (error) {
+		console.error("This channel doesn't have e-mail");
+		return ' ';
+	}
 }
 
 async function scrap_channel_data(channel_url, page) {
@@ -231,8 +254,8 @@ async function main() {
 		let yt_channels_data = [];
 		const google_accounts = await get_google_credentials('emails.txt');
 		let google_accounts_available = google_accounts.length;
-		
-		await login_to_google(page, navigationPromise, google_accounts[google_accounts_available - 1]);
+
+		let login = await login_to_google(page, navigationPromise, google_accounts[google_accounts_available - 1]);
 		google_accounts_available--;
 
 		await navigationPromise;
@@ -242,12 +265,13 @@ async function main() {
 
 		for (let i = 0; i < yt_url_channels.length; i++) {
 			try {
-				//go to youtube channel and get its infos
-				const yt_channel = await scrap_channel_data(yt_url_channels[i], page);
-				yt_channels_data.push(yt_channel);
-
-				if (yt_channel.email === " ") {
-					console.log('Email address hidden. You have reached your access limit for today. Try switching accounts');
+				let yt_channel;
+				if(login === "success"){
+					//go to youtube channel and get its infos
+					yt_channel = await scrap_channel_data(yt_url_channels[i], page);
+					yt_channels_data.push(yt_channel);
+				}
+				if (login === "failed" || yt_channel.email === 'error') {
 					console.log('log out...');
 					await page.goto('https://www.youtube.com/logout');
 					await navigationPromise;
@@ -260,11 +284,12 @@ async function main() {
 						connection = await create_connection();
 						browser = connection.browser;
 						page = connection.page;
-						
-						await login_to_google(page, navigationPromise, google_accounts[google_accounts_available - 1]);
+
+						login = await login_to_google(page, navigationPromise, google_accounts[google_accounts_available - 1]);
 						await navigationPromise;
 						google_accounts_available--;
 						i--; // Going back to the channel we were on
+						await page.waitForTimeout(2000);
 					} else {
 						console.log('No more google accounts available.\nExiting...');
 						break;
@@ -275,11 +300,11 @@ async function main() {
 			}
 		}
 		create_csv(yt_channels_data);
-	}finally{
-		if(!page.isClosed()) {
+	} finally {
+		if (!page.isClosed()) {
 			page.close();
 		}
-		if(browser.isConnected()) {
+		if (browser.isConnected()) {
 			browser.close();
 		}
 	}
