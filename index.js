@@ -109,10 +109,10 @@ async function login_to_google(page, navigationPromise, google_credentials) {
 	const current_url = await page.url();
 	if (current_url.includes('myaccount.google.com')) {
 		console.log('logged in successfully');
-		return "success";
+		return 'success';
 	} else {
 		console.log('Login failed');
-		return "failed";
+		return 'failed';
 	}
 }
 
@@ -129,21 +129,25 @@ async function get_channel_name(page) {
 
 async function categorize_social_medias(links) {
 	const social_medias = {
-		others: []
+		others: [],
+		facebook: "N/A",
+		instagram: "N/A",
+		twitter: "N/A",
 	};
 
-	links.forEach(link => {
-		if (link.includes('facebook.com')) {
-			social_medias.facebook = link;
-		} else if (link.includes('instagram.com')) {
-			social_medias.instagram = link;
-		} else if (link.includes('twitter.com')) {
-			social_medias.twitter = link;
-		} else {
-			social_medias['others'].push(link);
-		}
-	});
-
+	if (links !== 'N/A') {
+		links.forEach(link => {
+			if (link.includes('facebook.com')) {
+				social_medias.facebook = link;
+			} else if (link.includes('instagram.com')) {
+				social_medias.instagram = link;
+			} else if (link.includes('twitter.com')) {
+				social_medias.twitter = link;
+			} else {
+				social_medias['others'].push(link);
+			}
+		});
+	}
 	return social_medias;
 }
 
@@ -155,7 +159,9 @@ async function get_channel_social_medias(page) {
 	const social_media_links = await page.$$eval('.yt-channel-external-link-view-model-wiz__container a', links => {
 		return links.map(link => link.textContent);
 	});
-
+	if (social_media_links.length === 0) {
+		return 'N/A';
+	}
 	console.log(social_media_links);
 	return social_media_links;
 }
@@ -196,7 +202,7 @@ async function get_channel_email(page) {
 		return email;
 	} catch (error) {
 		console.error("This channel doesn't have e-mail");
-		return ' ';
+		return 'N/A';
 	}
 }
 
@@ -266,12 +272,12 @@ async function main() {
 		for (let i = 0; i < yt_url_channels.length; i++) {
 			try {
 				let yt_channel;
-				if(login === "success"){
+				if (login === 'success') {
 					//go to youtube channel and get its infos
 					yt_channel = await scrap_channel_data(yt_url_channels[i], page);
 					yt_channels_data.push(yt_channel);
 				}
-				if (login === "failed" || yt_channel.email === 'error') {
+				if (login === 'failed' || yt_channel.email === 'error') {
 					console.log('log out...');
 					await page.goto('https://www.youtube.com/logout');
 					await navigationPromise;
